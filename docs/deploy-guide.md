@@ -307,7 +307,11 @@ CMD ["pnpm", "start", "-p", "3000"]
 
 ### 3.4 创建 Nginx 配置
 
+**操作目的**：Nginx 作为反向代理，将 `/api` 开头的请求转发给后端，其余转发给前端。
+
 **文件路径**：`deploy/nginx.conf`
+
+> 以下为**纯 HTTP 版本**（无域名 / 无 HTTPS），通过 ECS 公网 IP 直接访问。后续如需上线域名和 HTTPS，再添加 SSL 配置即可。
 
 ```nginx
 upstream backend {
@@ -318,43 +322,24 @@ upstream frontend {
     server frontend:3000;
 }
 
-# HTTP → HTTPS 强制跳转
 server {
     listen 80;
-    server_name {{ YOUR_DOMAIN }};
-    return 301 https://$host$request_uri;
-}
+    server_name _;
 
-# HTTPS 主配置
-server {
-    listen 443 ssl http2;
-    server_name {{ YOUR_DOMAIN }};
-
-    # SSL 证书
-    ssl_certificate     /etc/nginx/ssl/cert.pem;
-    ssl_certificate_key /etc/nginx/ssl/cert.key;
-    ssl_protocols       TLSv1.2 TLSv1.3;
-    ssl_ciphers         HIGH:!aNULL:!MD5;
-    ssl_prefer_server_ciphers on;
-
-    # 安全头
     server_tokens off;
     add_header X-Content-Type-Options nosniff;
     add_header X-Frame-Options DENY;
 
-    # 超时设置（Agent 调用 LLM 可能较慢，给 120 秒）
     proxy_connect_timeout 30s;
     proxy_read_timeout    120s;
     proxy_send_timeout    30s;
 
-    # 通用代理头
     proxy_set_header Host              $host;
     proxy_set_header X-Real-IP         $remote_addr;
     proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
 
     # --- 后端 API 路由 ---
-    # /api、/health、/docs、/openapi.json 转发到 FastAPI
     location /api/ {
         proxy_pass http://backend;
     }
@@ -376,19 +361,15 @@ server {
     }
 
     # --- 前端路由 ---
-    # 其余所有请求转发到 Next.js
     location / {
         proxy_pass http://frontend;
     }
 
-    # Next.js 静态资源与 HMR
     location /_next/ {
         proxy_pass http://frontend;
     }
 }
 ```
-
-> **⚠️ 将所有 `{{ YOUR_DOMAIN }}` 替换为你的实际域名（如 `dailyplan.example.com`）。**
 
 ### 3.5 创建 `docker-compose.prod.yml`
 
@@ -418,7 +399,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_BASE_URL: "https://{{ YOUR_DOMAIN }}"
+        NEXT_PUBLIC_API_BASE_URL: "http://{{ YOUR_ECS_PUBLIC_IP }}"
     container_name: dailyplan-frontend
     restart: unless-stopped
     networks:
@@ -430,10 +411,8 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
-      - "443:443"
     volumes:
       - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./deploy/ssl:/etc/nginx/ssl:ro
     depends_on:
       backend:
         condition: service_healthy
@@ -447,7 +426,7 @@ networks:
     driver: bridge
 ```
 
-> **⚠️ 将 `{{ YOUR_DOMAIN }}` 替换为你的实际域名。**
+> **⚠️ 将 `{{ YOUR_ECS_PUBLIC_IP }}` 替换为你的 ECS 公网 IP（如 `47.98.163.97`）。**
 
 ### 3.6 创建后端生产环境变量文件
 
@@ -457,7 +436,7 @@ networks:
 APP_NAME=DailyPlan API
 APP_ENV=production
 APP_DEBUG=false
-BACKEND_CORS_ORIGINS=["https://{{ YOUR_DOMAIN }}"]
+BACKEND_CORS_ORIGINS=["http://{{ YOUR_ECS_PUBLIC_IP }}"]
 
 DB_HOST={{ YOUR_RDS_INTERNAL_HOST }}
 DB_PORT=5432
@@ -478,7 +457,7 @@ LLM_MAX_TOKENS=4096
 ```
 
 > **⚠️ 必须替换以下占位符：**
-> - **`{{ YOUR_DOMAIN }}`**：你的域名
+> - **`{{ YOUR_ECS_PUBLIC_IP }}`**：你的 ECS 公网 IP（如 `47.98.163.97`）
 > - **`{{ YOUR_RDS_INTERNAL_HOST }}`**：RDS 内网连接地址
 > - **`{{ YOUR_DB_PASSWORD }}`**：RDS 数据库密码
 > - **`{{ YOUR_JWT_SECRET }}`**：一个随机强密钥，可用 `openssl rand -hex 32` 生成
