@@ -36,8 +36,13 @@ def plan_week(goal: WeeklyGoal) -> WeekPlanResult:
         payload_text = _extract_json_payload(raw_output)
         payload = json.loads(payload_text)
         result = WeekPlanResult.model_validate(payload)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"LLM returned invalid JSON: {exc}. Raw (first 300 chars): {raw_output[:300]}") from exc
     except Exception as exc:
-        raise ValueError(f"Failed to parse LLM plan output: {raw_output[:500]}") from exc
+        days_count = len(payload.get("days", [])) if isinstance(payload, dict) else "N/A"
+        raise ValueError(
+            f"Schema validation failed: {exc}. days_count={days_count}. Raw (first 500 chars): {raw_output[:500]}"
+        ) from exc
 
     if goal.id is not None:
         result.weekly_goal_id = goal.id
