@@ -12,7 +12,7 @@ COPY . .
 ARG NEXT_PUBLIC_API_BASE_URL
 ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
 
-RUN pnpm build
+RUN mkdir -p public && pnpm build
 
 # --- 运行阶段 ---
 FROM node:20-alpine AS runner
