@@ -2,11 +2,12 @@ FROM python:3.11-slim AS base
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir uv
+RUN pip install --no-cache-dir uv -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com
 
 COPY pyproject.toml ./
 COPY uv.lock ./
 
+ENV UV_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
 RUN uv sync --frozen --no-dev
 
 COPY alembic.ini ./
