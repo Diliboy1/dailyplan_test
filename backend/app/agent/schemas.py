@@ -20,7 +20,7 @@ class DayPlan(BaseModel):
     date: str
     theme: str | None = None
     buffer_percent: int = Field(ge=15, le=20)
-    tasks: list[TaskItem] = Field(min_length=3, max_length=5)
+    tasks: list[TaskItem] = Field(min_length=1, max_length=6)
 
 
 class WeekPlanResult(BaseModel):
