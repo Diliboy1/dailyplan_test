@@ -10,6 +10,9 @@ echo "==> Installing backend dependencies with uv..."
 cd "${ROOT_DIR}/backend"
 uv sync
 
+echo "==> Applying database migrations (Alembic)..."
+uv run alembic upgrade head
+
 echo "==> Installing frontend dependencies with pnpm..."
 cd "${ROOT_DIR}/frontend"
 pnpm install

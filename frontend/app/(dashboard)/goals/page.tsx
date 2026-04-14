@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { apiGet, apiPost } from "@/lib/api";
+import { apiDelete, apiGet, apiPost } from "@/lib/api";
 import type { PlanWeekResponse, WeeklyGoalRead } from "@/lib/types";
 
 type GoalStatus = "draft" | "active" | "completed";
@@ -62,6 +62,15 @@ export default function GoalsPage() {
     },
   });
 
+  const deleteGoalMutation = useMutation({
+    mutationFn: (goalId: number) => apiDelete(`/api/weekly-goals/${goalId}`),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["weekly-goals"] });
+      await queryClient.invalidateQueries({ queryKey: ["plan-week"] });
+      await queryClient.invalidateQueries({ queryKey: ["progress"] });
+    },
+  });
+
   const sortedGoals = useMemo(() => {
     const goals = weeklyGoalsQuery.data ?? [];
     return [...goals].sort((a, b) => b.week_start_date.localeCompare(a.week_start_date));
@@ -96,6 +105,22 @@ export default function GoalsPage() {
       }
       alert(message);
     }
+  }
+
+  function handleDeleteGoal(goalId: number) {
+    if (
+      !window.confirm(
+        "确定删除该周目标？其下的日计划、任务与验收标准将一并删除，且不可恢复。",
+      )
+    ) {
+      return;
+    }
+    deleteGoalMutation.mutate(goalId, {
+      onError: (error: unknown) => {
+        const message = error instanceof Error ? error.message : "删除失败";
+        alert(message);
+      },
+    });
   }
 
   return (
@@ -208,7 +233,7 @@ export default function GoalsPage() {
                 <button
                   type="button"
                   onClick={() => void handleGenerate(goal.id)}
-                  disabled={generatePlanMutation.isPending}
+                  disabled={generatePlanMutation.isPending || deleteGoalMutation.isPending}
                   className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {generatePlanMutation.isPending &&
@@ -222,6 +247,20 @@ export default function GoalsPage() {
                   className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
                 >
                   查看计划
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteGoal(goal.id)}
+                  disabled={
+                    deleteGoalMutation.isPending ||
+                    (generatePlanMutation.isPending &&
+                      generatePlanMutation.variables === goal.id)
+                  }
+                  className="rounded-lg border border-rose-200 px-4 py-2 text-sm text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {deleteGoalMutation.isPending && deleteGoalMutation.variables === goal.id
+                    ? "删除中..."
+                    : "删除"}
                 </button>
               </div>
             </article>

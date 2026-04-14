@@ -30,7 +30,7 @@ function handleUnauthorized(): void {
 }
 
 async function request<T>(
-  method: "GET" | "POST" | "PATCH",
+  method: "GET" | "POST" | "PATCH" | "DELETE",
   path: string,
   body?: unknown,
   isForm = false,
@@ -65,14 +65,22 @@ async function request<T>(
   if (!response.ok) {
     let message = `Request failed with status ${response.status}`;
     try {
-      const data = (await response.json()) as { detail?: string };
-      if (data.detail) {
-        message = data.detail;
+      const data = (await response.json()) as { detail?: unknown };
+      if (data.detail !== undefined && data.detail !== null) {
+        if (typeof data.detail === "string") {
+          message = data.detail;
+        } else {
+          message = JSON.stringify(data.detail);
+        }
       }
     } catch {
       // ignore body parse error
     }
     throw new ApiError(response.status, message);
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
   }
 
   return (await response.json()) as T;
@@ -88,6 +96,10 @@ export function apiPost<T>(path: string, body: unknown): Promise<T> {
 
 export function apiPatch<T>(path: string, body: unknown): Promise<T> {
   return request<T>("PATCH", path, body);
+}
+
+export function apiDelete(path: string): Promise<void> {
+  return request<void>("DELETE", path);
 }
 
 export function apiFormPost<T>(

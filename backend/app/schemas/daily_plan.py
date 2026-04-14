@@ -1,6 +1,7 @@
 from datetime import date
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.daily_task import TaskStatus
 
@@ -51,3 +52,34 @@ class TaskStatusUpdate(BaseModel):
 
 class CriteriaUpdate(BaseModel):
     is_met: bool
+
+
+class DailyPlanUpdate(BaseModel):
+    theme: str | None = None
+    buffer_percent: int | None = Field(default=None, ge=0, le=100)
+
+    @field_validator("theme", mode="before")
+    @classmethod
+    def normalize_theme(cls, value: object) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped if stripped else None
+        return value
+
+
+class TaskContentUpdate(BaseModel):
+    description: str | None = None
+    estimated_hours: float | None = Field(default=None, gt=0)
+    priority: Literal["high", "medium", "low"] | None = None
+
+    @field_validator("description", mode="before")
+    @classmethod
+    def normalize_description(cls, value: object) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped if stripped else None
+        return value

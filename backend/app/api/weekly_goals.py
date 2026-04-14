@@ -61,6 +61,25 @@ def list_weekly_goals(
 
 
 # Phase 4A 新增
+@router.delete("/{goal_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_weekly_goal(
+    goal_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    goal = session.exec(
+        select(WeeklyGoal).where(
+            WeeklyGoal.id == goal_id,
+            WeeklyGoal.user_id == current_user.id,
+        )
+    ).first()
+    if goal is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Weekly goal not found")
+
+    session.delete(goal)
+    session.commit()
+
+
 @router.get("/{goal_id}/progress", response_model=ProgressResponse)
 def get_goal_progress(
     goal_id: int,

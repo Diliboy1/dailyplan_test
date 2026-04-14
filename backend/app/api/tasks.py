@@ -14,10 +14,60 @@ from app.schemas.daily_plan import (
     AcceptanceCriteriaRead,
     CriteriaUpdate,
     DailyTaskRead,
+    TaskContentUpdate,
     TaskStatusUpdate,
 )
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
+
+
+@router.patch("/{task_id}/content", response_model=DailyTaskRead)
+def update_task_content(
+    task_id: int,
+    payload: TaskContentUpdate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> DailyTask:
+    data = payload.model_dump(exclude_unset=True)
+    if not data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No fields to update",
+        )
+    if "description" in data and data["description"] is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="description cannot be empty",
+        )
+
+    statement = (
+        select(DailyTask)
+        .join(DailyPlan, DailyTask.daily_plan_id == DailyPlan.id)
+        .join(WeeklyGoal, DailyPlan.weekly_goal_id == WeeklyGoal.id)
+        .where(
+            DailyTask.id == task_id,
+            WeeklyGoal.user_id == current_user.id,
+        )
+        .options(selectinload(DailyTask.acceptance_criteria))
+    )
+    task = session.exec(statement).first()
+    if task is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    if "description" in data:
+        task.description = data["description"]
+    if "estimated_hours" in data:
+        task.estimated_hours = data["estimated_hours"]
+    if "priority" in data:
+        task.priority = data["priority"]
+
+    session.add(task)
+    session.commit()
+
+    refreshed = session.exec(statement).first()
+    if refreshed is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+    return refreshed
 
 
 @router.patch("/{task_id}/status", response_model=DailyTaskRead)
