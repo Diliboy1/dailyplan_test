@@ -54,6 +54,73 @@ class CriteriaUpdate(BaseModel):
     is_met: bool
 
 
+class AcceptanceCriteriaCreate(BaseModel):
+    metric_name: str = Field(min_length=1, max_length=255)
+    target_value: str = Field(min_length=1, max_length=255)
+    unit: str | None = Field(default=None, max_length=50)
+
+    @field_validator("metric_name", "target_value", mode="before")
+    @classmethod
+    def normalize_required_text(cls, value: object) -> str | None:
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped if stripped else None
+        return value
+
+    @field_validator("unit", mode="before")
+    @classmethod
+    def normalize_unit(cls, value: object) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped if stripped else None
+        return value
+
+
+class AcceptanceCriteriaContentUpdate(BaseModel):
+    metric_name: str | None = Field(default=None, min_length=1, max_length=255)
+    target_value: str | None = Field(default=None, min_length=1, max_length=255)
+    unit: str | None = Field(default=None, max_length=50)
+
+    @field_validator("metric_name", "target_value", mode="before")
+    @classmethod
+    def normalize_optional_text(cls, value: object) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped if stripped else None
+        return value
+
+    @field_validator("unit", mode="before")
+    @classmethod
+    def normalize_optional_unit(cls, value: object) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped if stripped else None
+        return value
+
+
+class TaskCreate(BaseModel):
+    daily_plan_id: int
+    description: str = Field(min_length=1)
+    priority: Literal["high", "medium", "low"] = "medium"
+    estimated_hours: float = Field(default=1.0, gt=0)
+    status: TaskStatus = TaskStatus.not_started
+    acceptance_criteria: list[AcceptanceCriteriaCreate] = Field(default_factory=list, max_length=10)
+
+    @field_validator("description", mode="before")
+    @classmethod
+    def normalize_task_description(cls, value: object) -> str | None:
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped if stripped else None
+        return value
+
+
 class DailyPlanUpdate(BaseModel):
     theme: str | None = None
     buffer_percent: int | None = Field(default=None, ge=0, le=100)

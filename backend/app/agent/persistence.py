@@ -7,8 +7,15 @@ from app.models.acceptance_criteria import AcceptanceCriteria
 from app.models.daily_plan import DailyPlan
 from app.models.daily_task import DailyTask
 
+WEEKDAY_FRIDAY = 4
 
-def save_week_plan(session: Session, plan: WeekPlanResult) -> None:
+
+def save_week_plan(
+    session: Session,
+    plan: WeekPlanResult,
+    *,
+    start_weekday: int,
+) -> None:
     """
     将 WeekPlanResult 写入 daily_plans / daily_tasks / acceptance_criteria 三张表。
     在调用方事务中写入数据（不 commit）。
@@ -18,6 +25,18 @@ def save_week_plan(session: Session, plan: WeekPlanResult) -> None:
         if plan_date.weekday() != day.day_of_week:
             raise ValueError(
                 f"date/day_of_week mismatch: date={day.date}, day_of_week={day.day_of_week}"
+            )
+        is_active_workday = (
+            start_weekday <= WEEKDAY_FRIDAY
+            and start_weekday <= day.day_of_week <= WEEKDAY_FRIDAY
+        )
+        if not is_active_workday and day.tasks:
+            raise ValueError(
+                f"non-workday must be empty: date={day.date}, day_of_week={day.day_of_week}"
+            )
+        if not is_active_workday and day.theme is not None:
+            raise ValueError(
+                f"non-workday theme must be null: date={day.date}, day_of_week={day.day_of_week}"
             )
 
         daily_plan = DailyPlan(

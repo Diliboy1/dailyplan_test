@@ -187,7 +187,7 @@ export default function GoalsPage() {
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h1 className="text-2xl font-semibold text-slate-900">周目标管理</h1>
         <p className="mt-1 text-slate-600">
-          创建周目标并基于“开始执行日”生成本周（周一至周日）计划。
+          创建周目标并基于“开始执行日”生成本周工作日（周一至周五）计划。
         </p>
 
         <form className="mt-6 grid gap-4" onSubmit={handleCreateGoal}>

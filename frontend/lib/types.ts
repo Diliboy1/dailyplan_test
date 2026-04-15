@@ -29,6 +29,18 @@ export interface AcceptanceCriteriaRead {
   is_met: boolean;
 }
 
+export interface AcceptanceCriteriaCreateInput {
+  metric_name: string;
+  target_value: string;
+  unit: string | null;
+}
+
+export interface AcceptanceCriteriaContentUpdateInput {
+  metric_name?: string | null;
+  target_value?: string | null;
+  unit?: string | null;
+}
+
 export interface DailyTaskRead {
   id: number;
   description: string;
@@ -38,6 +50,15 @@ export interface DailyTaskRead {
   is_completed: boolean;
   status: "not_started" | "in_progress" | "completed" | "blocked";
   acceptance_criteria: AcceptanceCriteriaRead[];
+}
+
+export interface TaskCreateInput {
+  daily_plan_id: number;
+  description: string;
+  priority: DailyTaskRead["priority"];
+  estimated_hours: number;
+  status: DailyTaskRead["status"];
+  acceptance_criteria: AcceptanceCriteriaCreateInput[];
 }
 
 export interface DailyPlanRead {

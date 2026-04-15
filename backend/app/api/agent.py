@@ -128,7 +128,11 @@ def plan_week_endpoint(
         ) from exc
 
     try:
-        save_week_plan(session, plan)
+        save_week_plan(
+            session,
+            plan,
+            start_weekday=goal.week_start_date.weekday(),
+        )
         locked_goal = session.exec(statement).first()
         if locked_goal is None:
             session.rollback()

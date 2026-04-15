@@ -7,6 +7,9 @@ from app.agent.prompts import SYSTEM_PROMPT, build_user_prompt
 from app.agent.schemas import DayPlan, TaskItem, WeekPlanDraft, WeekPlanResult
 from app.models.weekly_goal import WeeklyGoal
 
+WEEKDAY_FRIDAY = 4
+WEEKDAY_SATURDAY = 5
+
 
 def _extract_json_payload(raw_text: str) -> str:
     text = raw_text.strip()
@@ -49,6 +52,12 @@ def _normalize_theme(value: str | None) -> str | None:
     return stripped if stripped else None
 
 
+def _is_active_workday(day_of_week: int, *, start_weekday: int) -> bool:
+    if start_weekday > WEEKDAY_FRIDAY:
+        return False
+    return start_weekday <= day_of_week <= WEEKDAY_FRIDAY
+
+
 def _normalize_week_plan(goal: WeeklyGoal, draft: WeekPlanDraft) -> WeekPlanResult:
     start_date = goal.week_start_date
     start_weekday = start_date.weekday()
@@ -57,42 +66,70 @@ def _normalize_week_plan(goal: WeeklyGoal, draft: WeekPlanDraft) -> WeekPlanResu
     indexed_days = list(enumerate(draft.days))
     day_index_by_weekday: dict[int, int] = {}
     day_index_by_date: dict[DateType, int] = {}
+    parsed_date_by_index: dict[int, DateType] = {}
 
     for index, day in indexed_days:
         if day.day_of_week is not None and day.day_of_week not in day_index_by_weekday:
             day_index_by_weekday[day.day_of_week] = index
         parsed_date = _parse_iso_date(day.date)
-        if parsed_date is not None and parsed_date not in day_index_by_date:
-            day_index_by_date[parsed_date] = index
+        if parsed_date is not None:
+            parsed_date_by_index[index] = parsed_date
+            if parsed_date not in day_index_by_date:
+                day_index_by_date[parsed_date] = index
 
     used_indexes: set[int] = set()
     fallback_cursor = 0
+
+    def candidate_weekday(index: int) -> int | None:
+        draft_day = draft.days[index]
+        if draft_day.day_of_week is not None:
+            return draft_day.day_of_week
+        parsed_date = parsed_date_by_index.get(index)
+        if parsed_date is not None:
+            return parsed_date.weekday()
+        return None
+
+    def candidate_is_eligible(index: int) -> bool:
+        if index in used_indexes:
+            return False
+
+        draft_day = draft.days[index]
+        if not draft_day.tasks:
+            return False
+
+        weekday = candidate_weekday(index)
+        if weekday is None:
+            # 没有可靠日期/星期信息时，作为最后兜底候选。
+            return True
+
+        if weekday >= WEEKDAY_SATURDAY:
+            return False
+        if weekday < start_weekday:
+            return False
+        return True
 
     def pick_candidate_index(day_of_week: int, target_date: DateType) -> int | None:
         nonlocal fallback_cursor
 
         date_match = day_index_by_date.get(target_date)
-        if date_match is not None and date_match not in used_indexes:
+        if date_match is not None and candidate_is_eligible(date_match):
             return date_match
 
         weekday_match = day_index_by_weekday.get(day_of_week)
-        if weekday_match is not None and weekday_match not in used_indexes:
+        if weekday_match is not None and candidate_is_eligible(weekday_match):
             return weekday_match
 
         while fallback_cursor < len(indexed_days):
             candidate_index, candidate_day = indexed_days[fallback_cursor]
             fallback_cursor += 1
-            if candidate_index in used_indexes:
-                continue
-            if not candidate_day.tasks:
-                continue
-            return candidate_index
+            if candidate_day.tasks and candidate_is_eligible(candidate_index):
+                return candidate_index
         return None
 
     normalized_days: list[DayPlan] = []
     for day_of_week in range(7):
         target_date = week_monday + timedelta(days=day_of_week)
-        if day_of_week < start_weekday:
+        if not _is_active_workday(day_of_week, start_weekday=start_weekday):
             normalized_days.append(
                 DayPlan(
                     day_of_week=day_of_week,
@@ -107,7 +144,8 @@ def _normalize_week_plan(goal: WeeklyGoal, draft: WeekPlanDraft) -> WeekPlanResu
         candidate_index = pick_candidate_index(day_of_week, target_date)
         if candidate_index is None:
             raise ValueError(
-                f"LLM output missing plan for {target_date.isoformat()} (day_of_week={day_of_week})"
+                "LLM output missing workday plan for "
+                f"{target_date.isoformat()} (day_of_week={day_of_week})"
             )
         used_indexes.add(candidate_index)
         candidate = draft.days[candidate_index]
