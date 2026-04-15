@@ -17,8 +17,12 @@ export default function HomePage() {
       router.replace("/goals");
       return;
     }
-    router.replace("/login");
+    router.replace("/register");
   }, [isAuthenticated, isLoading, router]);
 
-  return <main className="flex min-h-screen items-center justify-center text-slate-600">加载中...</main>;
+  return (
+    <main className="flex min-h-screen items-center justify-center text-sm text-[color:var(--color-graphite-700)]">
+      正在进入 DailyPlan...
+    </main>
+  );
 }

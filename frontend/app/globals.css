@@ -4,8 +4,265 @@
 
 :root {
   color-scheme: light;
+  --color-graphite-950: #122124;
+  --color-graphite-900: #1a2a2d;
+  --color-graphite-700: #3d4f53;
+  --color-graphite-500: #678086;
+  --color-cloud-50: #f4faf8;
+  --color-cloud-100: #edf5f2;
+  --color-cloud-200: #dde9e4;
+  --color-mint-300: #99e6d0;
+  --color-mint-400: #65d9ba;
+  --color-mint-500: #3ec8a4;
+  --color-mint-600: #2aa688;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
-  @apply bg-slate-100 text-slate-900;
+  min-height: 100vh;
+  margin: 0;
+  font-family:
+    "Plus Jakarta Sans",
+    "Noto Sans SC",
+    "PingFang SC",
+    "Hiragino Sans GB",
+    "Microsoft YaHei",
+    sans-serif;
+  color: var(--color-graphite-900);
+  background:
+    radial-gradient(circle at 8% -10%, rgba(62, 200, 164, 0.18), transparent 42%),
+    radial-gradient(circle at 90% 0%, rgba(153, 230, 208, 0.2), transparent 36%),
+    linear-gradient(180deg, var(--color-cloud-50) 0%, #ffffff 55%, #f5faf8 100%);
+}
+
+::selection {
+  background: rgba(62, 200, 164, 0.26);
+}
+
+@keyframes flowPulse {
+  0%,
+  14% {
+    opacity: 0.35;
+    transform: translateY(6px);
+    border-color: rgba(101, 217, 186, 0.3);
+  }
+
+  24%,
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    border-color: rgba(62, 200, 164, 0.78);
+  }
+}
+
+@keyframes flowLine {
+  0% {
+    opacity: 0.12;
+    transform: scaleX(0.2);
+  }
+
+  32%,
+  100% {
+    opacity: 0.9;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes successPulse {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+
+  50% {
+    transform: translateY(-1px) scale(1.015);
+  }
+
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes missionPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(62, 200, 164, 0.45);
+  }
+
+  70% {
+    box-shadow: 0 0 0 10px rgba(62, 200, 164, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(62, 200, 164, 0);
+  }
+}
+
+@keyframes missionCardIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@layer components {
+  .brand-shell {
+    @apply relative overflow-hidden;
+  }
+
+  .brand-shell::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.12) 0%,
+      rgba(255, 255, 255, 0) 60%
+    );
+  }
+
+  .brand-card {
+    @apply rounded-3xl border border-[rgba(26,42,45,0.1)] bg-white/90 p-6 shadow-[0_20px_40px_rgba(26,42,45,0.08)] backdrop-blur;
+  }
+
+  .brand-input {
+    @apply w-full rounded-xl border border-[rgba(26,42,45,0.22)] bg-white/90 px-3.5 py-2.5 text-sm text-[color:var(--color-graphite-900)] outline-none transition;
+  }
+
+  .brand-input:focus {
+    border-color: rgba(62, 200, 164, 0.92);
+    box-shadow: 0 0 0 4px rgba(62, 200, 164, 0.2);
+  }
+
+  .brand-btn {
+    @apply inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-70;
+    background: linear-gradient(
+      140deg,
+      var(--color-graphite-950) 0%,
+      var(--color-graphite-900) 45%,
+      var(--color-mint-600) 115%
+    );
+  }
+
+  .brand-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 24px rgba(18, 33, 36, 0.18);
+  }
+
+  .brand-btn[data-state="success"] {
+    background: linear-gradient(125deg, var(--color-mint-600) 0%, var(--color-mint-500) 100%);
+    animation: successPulse 0.9s ease-in-out 0s 2;
+  }
+
+  .story-chip {
+    @apply inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold;
+    border-color: rgba(62, 200, 164, 0.35);
+    color: var(--color-graphite-700);
+    background: rgba(153, 230, 208, 0.25);
+  }
+
+  .story-flow-line {
+    transform-origin: left;
+    animation: flowLine 8s ease-in-out infinite;
+  }
+
+  .story-flow-node {
+    animation: flowPulse 8s ease-in-out infinite;
+  }
+
+  .mission-shell {
+    @apply relative overflow-hidden;
+    background:
+      radial-gradient(circle at 14% 0%, rgba(62, 200, 164, 0.22), transparent 36%),
+      radial-gradient(circle at 86% 5%, rgba(71, 109, 255, 0.14), transparent 30%),
+      linear-gradient(160deg, #0d171a 0%, #111f24 44%, #0f1c21 100%);
+  }
+
+  .mission-shell::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.42;
+    background-image: radial-gradient(rgba(255, 255, 255, 0.12) 0.65px, transparent 0.65px);
+    background-size: 26px 26px;
+  }
+
+  .mission-glass {
+    @apply rounded-3xl border border-white/10 bg-[rgba(13,25,31,0.72)] backdrop-blur-xl;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      0 24px 48px rgba(2, 10, 15, 0.45);
+  }
+
+  .mission-card {
+    @apply relative overflow-hidden rounded-2xl border border-white/10 bg-[rgba(15,28,34,0.76)] p-5 transition duration-300;
+  }
+
+  .mission-card::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.28s ease;
+    background: linear-gradient(
+      130deg,
+      rgba(62, 200, 164, 0.35),
+      rgba(104, 123, 255, 0.08) 38%,
+      rgba(255, 255, 255, 0.06) 70%
+    );
+  }
+
+  .mission-card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(62, 200, 164, 0.38);
+  }
+
+  .mission-card:hover::before {
+    opacity: 1;
+  }
+
+  .mission-card-enter {
+    animation: missionCardIn 0.42s ease-out;
+  }
+
+  .mission-input {
+    @apply w-full rounded-xl border border-white/15 bg-[rgba(6,15,19,0.58)] px-3.5 py-2.5 text-sm text-white outline-none transition placeholder:text-slate-400;
+  }
+
+  .mission-input:focus {
+    border-color: rgba(62, 200, 164, 0.78);
+    box-shadow: 0 0 0 4px rgba(62, 200, 164, 0.2);
+  }
+
+  .mission-btn-primary {
+    @apply inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60;
+    background: linear-gradient(140deg, #2cb696 0%, #2f9f9f 55%, #4384d8 100%);
+  }
+
+  .mission-btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 22px rgba(44, 182, 150, 0.3);
+  }
+
+  .mission-btn-secondary {
+    @apply inline-flex items-center justify-center rounded-xl border border-white/20 bg-white/5 px-4 py-2 text-sm text-slate-100 transition disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .mission-btn-secondary:hover {
+    border-color: rgba(62, 200, 164, 0.45);
+    background: rgba(62, 200, 164, 0.12);
+  }
+
+  .mission-badge-active {
+    animation: missionPulse 1.9s ease-out infinite;
+  }
 }
