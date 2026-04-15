@@ -4,7 +4,7 @@ const API_BASE_URL =
 export const AUTH_TOKEN_KEY = "dailyplan_token";
 export const AUTH_USER_KEY = "dailyplan_user";
 
-class ApiError extends Error {
+export class ApiError extends Error {
   status: number;
 
   constructor(status: number, message: string) {

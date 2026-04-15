@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     llm_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     llm_model: str = "qwen3.6-plus"
     llm_temperature: float = 0.3
-    llm_max_tokens: int = 4096
+    llm_max_tokens: int = 32768
 
     model_config = SettingsConfigDict(
         env_file=".env",

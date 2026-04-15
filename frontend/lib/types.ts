@@ -15,6 +15,8 @@ export interface WeeklyGoalRead {
   description: string;
   week_start_date: string;
   status: "draft" | "active" | "completed";
+  generation_status: "idle" | "generating" | "completed" | "failed";
+  generation_error: string | null;
   created_at: string;
   updated_at: string;
 }

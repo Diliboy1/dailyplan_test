@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { apiDelete, apiGet, apiPost } from "@/lib/api";
+import { ApiError, apiDelete, apiGet, apiPost } from "@/lib/api";
 import type { PlanWeekResponse, WeeklyGoalRead } from "@/lib/types";
 
 type GoalStatus = "draft" | "active" | "completed";
@@ -21,6 +21,19 @@ const statusBadgeClass: Record<GoalStatus, string> = {
   active: "bg-blue-100 text-blue-700",
   completed: "bg-emerald-100 text-emerald-700",
 };
+
+function getGenerateButtonText(goal: WeeklyGoalRead): string {
+  if (goal.generation_status === "generating") {
+    return "生成中...";
+  }
+  if (goal.generation_status === "completed") {
+    return "已生成";
+  }
+  if (goal.generation_status === "failed") {
+    return "重新生成";
+  }
+  return "生成计划";
+}
 
 export default function GoalsPage() {
   const router = useRouter();
@@ -54,11 +67,41 @@ export default function GoalsPage() {
     },
   });
 
-  const generatePlanMutation = useMutation({
+  const generatePlanMutation = useMutation<
+    PlanWeekResponse,
+    unknown,
+    number,
+    { previousGoals?: WeeklyGoalRead[] }
+  >({
     mutationFn: (goalId: number) =>
       apiPost<PlanWeekResponse>("/api/agent/plan-week", { weekly_goal_id: goalId }),
-    onSuccess: (data) => {
+    onMutate: async (goalId) => {
+      await queryClient.cancelQueries({ queryKey: ["weekly-goals"] });
+      const previousGoals = queryClient.getQueryData<WeeklyGoalRead[]>(["weekly-goals"]);
+      queryClient.setQueryData<WeeklyGoalRead[]>(["weekly-goals"], (goals) =>
+        (goals ?? []).map((goal) =>
+          goal.id === goalId
+            ? {
+                ...goal,
+                generation_status: "generating",
+                generation_error: null,
+              }
+            : goal,
+        ),
+      );
+      return { previousGoals };
+    },
+    onError: (_error, _goalId, context) => {
+      if (context?.previousGoals) {
+        queryClient.setQueryData(["weekly-goals"], context.previousGoals);
+      }
+    },
+    onSuccess: async (data) => {
+      await queryClient.invalidateQueries({ queryKey: ["weekly-goals"] });
       router.push(`/plans/${data.weekly_goal_id}`);
+    },
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["weekly-goals"] });
     },
   });
 
@@ -93,16 +136,32 @@ export default function GoalsPage() {
     });
   }
 
-  async function handleGenerate(goalId: number) {
+  async function handleGenerate(goal: WeeklyGoalRead) {
+    if (goal.generation_status === "completed") {
+      router.push(`/plans/${goal.id}`);
+      return;
+    }
+    if (goal.generation_status === "generating") {
+      alert("该周目标正在生成计划，请稍后查看结果");
+      return;
+    }
+
     try {
-      await generatePlanMutation.mutateAsync(goalId);
+      await generatePlanMutation.mutateAsync(goal.id);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "生成计划失败";
-      if (message.includes("已生成过计划")) {
-        alert("该周目标已生成过计划，请直接查看计划");
-        router.push(`/plans/${goalId}`);
-        return;
+      if (error instanceof ApiError && error.status === 409) {
+        await queryClient.invalidateQueries({ queryKey: ["weekly-goals"] });
+        if (error.message.includes("生成中")) {
+          alert("该周目标正在生成计划，请稍后查看结果");
+          return;
+        }
+        if (error.message.includes("已生成过计划")) {
+          alert("该周目标已生成过计划，请直接查看计划");
+          router.push(`/plans/${goal.id}`);
+          return;
+        }
       }
+      const message = error instanceof Error ? error.message : "生成计划失败";
       alert(message);
     }
   }
@@ -127,7 +186,9 @@ export default function GoalsPage() {
     <div className="space-y-6">
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h1 className="text-2xl font-semibold text-slate-900">周目标管理</h1>
-        <p className="mt-1 text-slate-600">创建每周目标并触发 AI 自动生成 Mon-Sun 计划。</p>
+        <p className="mt-1 text-slate-600">
+          创建周目标并基于“开始执行日”生成本周（周一至周日）计划。
+        </p>
 
         <form className="mt-6 grid gap-4" onSubmit={handleCreateGoal}>
           <div>
@@ -154,7 +215,9 @@ export default function GoalsPage() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">周起始日期</label>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                计划开始执行日
+              </label>
               <input
                 type="date"
                 value={weekStartDate}
@@ -220,7 +283,9 @@ export default function GoalsPage() {
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900">{goal.title}</h3>
                   <p className="mt-2 line-clamp-2 text-sm text-slate-600">{goal.description}</p>
-                  <p className="mt-2 text-xs text-slate-500">周起始日期：{goal.week_start_date}</p>
+                  <p className="mt-2 text-xs text-slate-500">
+                    开始执行日：{goal.week_start_date}
+                  </p>
                 </div>
                 <span
                   className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusBadgeClass[goal.status]}`}
@@ -230,39 +295,69 @@ export default function GoalsPage() {
               </div>
 
               <div className="mt-4 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() => void handleGenerate(goal.id)}
-                  disabled={generatePlanMutation.isPending || deleteGoalMutation.isPending}
-                  className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {generatePlanMutation.isPending &&
-                  generatePlanMutation.variables === goal.id
-                    ? "生成中..."
-                    : "生成计划"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => router.push(`/plans/${goal.id}`)}
-                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
-                >
-                  查看计划
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteGoal(goal.id)}
-                  disabled={
+                {(() => {
+                  const generatingThisGoal =
+                    generatePlanMutation.isPending &&
+                    generatePlanMutation.variables === goal.id;
+                  const generationStatus = generatingThisGoal
+                    ? "generating"
+                    : goal.generation_status;
+                  const generationLabel =
+                    generationStatus === "generating"
+                      ? "生成中..."
+                      : getGenerateButtonText(goal);
+                  const disableGenerate =
                     deleteGoalMutation.isPending ||
-                    (generatePlanMutation.isPending &&
-                      generatePlanMutation.variables === goal.id)
-                  }
-                  className="rounded-lg border border-rose-200 px-4 py-2 text-sm text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {deleteGoalMutation.isPending && deleteGoalMutation.variables === goal.id
-                    ? "删除中..."
-                    : "删除"}
-                </button>
+                    generatePlanMutation.isPending ||
+                    generationStatus === "generating" ||
+                    generationStatus === "completed";
+                  const disableDelete =
+                    deleteGoalMutation.isPending ||
+                    generationStatus === "generating" ||
+                    generatingThisGoal;
+
+                  return (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => void handleGenerate(goal)}
+                        disabled={disableGenerate}
+                        className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {generationLabel}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/plans/${goal.id}`)}
+                        className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                      >
+                        查看计划
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteGoal(goal.id)}
+                        disabled={disableDelete}
+                        className="rounded-lg border border-rose-200 px-4 py-2 text-sm text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {deleteGoalMutation.isPending && deleteGoalMutation.variables === goal.id
+                          ? "删除中..."
+                          : "删除"}
+                      </button>
+                    </>
+                  );
+                })()}
               </div>
+
+              {goal.generation_status === "generating" ? (
+                <p className="mt-3 text-xs text-blue-700">
+                  计划正在生成中，刷新或切换页面后仍会保持该状态。
+                </p>
+              ) : null}
+              {goal.generation_status === "failed" && goal.generation_error ? (
+                <p className="mt-3 text-xs text-rose-700">
+                  上次生成失败：{goal.generation_error}
+                </p>
+              ) : null}
             </article>
           ))}
         </div>

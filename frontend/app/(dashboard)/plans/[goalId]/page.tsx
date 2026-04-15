@@ -4,8 +4,13 @@ import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { apiGet, apiPatch } from "@/lib/api";
-import type { DailyPlanRead, DailyTaskRead, PlanWeekResponse } from "@/lib/types";
+import { ApiError, apiGet, apiPatch } from "@/lib/api";
+import type {
+  DailyPlanRead,
+  DailyTaskRead,
+  PlanWeekResponse,
+  WeeklyGoalRead,
+} from "@/lib/types";
 
 const weekdayMap: Record<number, string> = {
   0: "周一",
@@ -53,11 +58,22 @@ export default function PlanBoardPage() {
     priority: "medium" as DailyTaskRead["priority"],
   });
 
+  const goalQuery = useQuery({
+    queryKey: ["weekly-goal", goalId],
+    queryFn: () => apiGet<WeeklyGoalRead>(`/api/weekly-goals/${goalId}`),
+    enabled: Number.isFinite(goalId),
+    retry: false,
+    refetchInterval: (query) =>
+      query.state.data?.generation_status === "generating" ? 3000 : false,
+  });
+
   const planQuery = useQuery({
     queryKey: ["plan-week", goalId],
     queryFn: () => apiGet<PlanWeekResponse>(`/api/agent/plan-week/${goalId}`),
     enabled: Number.isFinite(goalId),
     retry: false,
+    refetchInterval: () =>
+      goalQuery.data?.generation_status === "generating" ? 3000 : false,
   });
 
   const updateTaskStatusMutation = useMutation({
@@ -215,7 +231,7 @@ export default function PlanBoardPage() {
     }
   }
 
-  if (planQuery.isLoading) {
+  if (goalQuery.isLoading || planQuery.isLoading) {
     return (
       <main className="rounded-xl border border-slate-200 bg-white p-6 text-slate-600 shadow-sm">
         正在加载计划...
@@ -223,16 +239,73 @@ export default function PlanBoardPage() {
     );
   }
 
+  if (goalQuery.isError) {
+    const message = goalQuery.error instanceof Error ? goalQuery.error.message : "加载失败";
+    return (
+      <main className="rounded-xl border border-rose-200 bg-rose-50 p-6 text-rose-700 shadow-sm">
+        周目标加载失败：{message}
+      </main>
+    );
+  }
+
   if (planQuery.isError) {
     const message = planQuery.error instanceof Error ? planQuery.error.message : "加载失败";
     const isNotFound =
-      message.toLowerCase().includes("not found") || message.includes("找不到");
+      (planQuery.error instanceof ApiError && planQuery.error.status === 404) ||
+      message.toLowerCase().includes("not found") ||
+      message.includes("找不到");
+    const generationStatus = goalQuery.data?.generation_status;
 
     if (isNotFound) {
+      if (generationStatus === "generating") {
+        return (
+          <main className="rounded-xl border border-blue-200 bg-blue-50 p-6 shadow-sm">
+            <h1 className="text-xl font-semibold text-blue-900">计划正在生成中</h1>
+            <p className="mt-2 text-blue-800">
+              已收到生成请求，系统正在处理。页面会自动轮询刷新，也可以稍后再回来查看。
+            </p>
+            <div className="mt-4 flex gap-3">
+              <button
+                type="button"
+                onClick={() => void planQuery.refetch()}
+                className="rounded-lg border border-blue-300 px-4 py-2 text-sm text-blue-800 hover:bg-blue-100"
+              >
+                立即刷新
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push("/goals")}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+              >
+                返回周目标
+              </button>
+            </div>
+          </main>
+        );
+      }
+      if (generationStatus === "failed") {
+        return (
+          <main className="rounded-xl border border-rose-200 bg-rose-50 p-6 shadow-sm">
+            <h1 className="text-xl font-semibold text-rose-900">计划生成失败</h1>
+            <p className="mt-2 text-rose-800">
+              {goalQuery.data?.generation_error ?? "请返回周目标页重试生成计划。"}
+            </p>
+            <button
+              type="button"
+              onClick={() => router.push("/goals")}
+              className="mt-4 rounded-lg border border-rose-300 px-4 py-2 text-sm text-rose-700 hover:bg-rose-100"
+            >
+              返回周目标重试
+            </button>
+          </main>
+        );
+      }
       return (
         <main className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <h1 className="text-xl font-semibold text-slate-900">暂无计划数据</h1>
-          <p className="mt-2 text-slate-600">该周目标尚未生成计划，请先返回周目标页执行生成。</p>
+          <p className="mt-2 text-slate-600">
+            该周目标尚未生成计划，请先返回周目标页执行生成。
+          </p>
           <button
             type="button"
             onClick={() => router.push("/goals")}
@@ -258,8 +331,16 @@ export default function PlanBoardPage() {
         <p className="mt-1 text-slate-600">按天执行任务，实时更新状态与验收标准达成情况。</p>
       </header>
 
-      {sortedDays.map((day) => (
-        <section key={day.id} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      {sortedDays.map((day) => {
+        const isBeforeStartDate = goalQuery.data
+          ? day.date < goalQuery.data.week_start_date
+          : false;
+
+        return (
+          <section
+            key={day.id}
+            className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+          >
           <header className="mb-4 border-b border-slate-100 pb-3">
             {editingPlanId === day.id ? (
               <div className="space-y-3">
@@ -343,6 +424,13 @@ export default function PlanBoardPage() {
           </header>
 
           <div className="space-y-3">
+            {day.daily_tasks.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                {isBeforeStartDate
+                  ? "该日早于开始执行日，不安排任务。"
+                  : "该日暂无任务。"}
+              </div>
+            ) : null}
             {day.daily_tasks
               .slice()
               .sort((a, b) => a.order_index - b.order_index)
@@ -538,8 +626,9 @@ export default function PlanBoardPage() {
                 );
               })}
           </div>
-        </section>
-      ))}
+          </section>
+        );
+      })}
     </div>
   );
 }

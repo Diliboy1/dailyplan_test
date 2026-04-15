@@ -16,6 +16,13 @@ class WeeklyGoalStatus(str, Enum):
     completed = "completed"
 
 
+class GoalGenerationStatus(str, Enum):
+    idle = "idle"
+    generating = "generating"
+    completed = "completed"
+    failed = "failed"
+
+
 class WeeklyGoal(SQLModel, table=True):
     __tablename__ = "weekly_goals"
 
@@ -37,6 +44,22 @@ class WeeklyGoal(SQLModel, table=True):
             nullable=False,
             default=WeeklyGoalStatus.draft,
         ),
+    )
+    generation_status: GoalGenerationStatus = Field(
+        default=GoalGenerationStatus.idle,
+        sa_column=Column(
+            SQLEnum(
+                GoalGenerationStatus,
+                name="weekly_goal_generation_status",
+            ),
+            nullable=False,
+            default=GoalGenerationStatus.idle,
+            server_default=GoalGenerationStatus.idle.value,
+        ),
+    )
+    generation_error: str | None = Field(
+        default=None,
+        sa_column=Column(Text, nullable=True),
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

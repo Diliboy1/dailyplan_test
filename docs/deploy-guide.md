@@ -453,7 +453,7 @@ LLM_API_KEY={{ YOUR_LLM_API_KEY }}
 LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 LLM_MODEL=qwen-plus
 LLM_TEMPERATURE=0.3
-LLM_MAX_TOKENS=4096
+LLM_MAX_TOKENS=32768
 ```
 
 > **⚠️ 必须替换以下占位符：**

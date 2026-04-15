@@ -9,7 +9,7 @@ from app.models.acceptance_criteria import AcceptanceCriteria
 from app.models.daily_plan import DailyPlan
 from app.models.daily_task import DailyTask, TaskStatus
 from app.models.user import User
-from app.models.weekly_goal import WeeklyGoal, WeeklyGoalStatus
+from app.models.weekly_goal import GoalGenerationStatus, WeeklyGoal, WeeklyGoalStatus
 from app.schemas.progress import ProgressResponse
 from app.schemas.weekly_goal import WeeklyGoalCreate, WeeklyGoalRead
 
@@ -75,9 +75,31 @@ def delete_weekly_goal(
     ).first()
     if goal is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Weekly goal not found")
+    if goal.generation_status == GoalGenerationStatus.generating:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="该周目标正在生成计划，请稍后再删除",
+        )
 
     session.delete(goal)
     session.commit()
+
+
+@router.get("/{goal_id}", response_model=WeeklyGoalRead)
+def get_weekly_goal(
+    goal_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> WeeklyGoal:
+    goal = session.exec(
+        select(WeeklyGoal).where(
+            WeeklyGoal.id == goal_id,
+            WeeklyGoal.user_id == current_user.id,
+        )
+    ).first()
+    if goal is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Weekly goal not found")
+    return goal
 
 
 @router.get("/{goal_id}/progress", response_model=ProgressResponse)

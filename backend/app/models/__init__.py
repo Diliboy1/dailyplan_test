@@ -2,7 +2,7 @@ from app.models.acceptance_criteria import AcceptanceCriteria
 from app.models.daily_plan import DailyPlan
 from app.models.daily_task import DailyTask, TaskStatus
 from app.models.user import User
-from app.models.weekly_goal import WeeklyGoal, WeeklyGoalStatus
+from app.models.weekly_goal import GoalGenerationStatus, WeeklyGoal, WeeklyGoalStatus
 
 # Phase 4A 修改
 __all__ = [
@@ -10,8 +10,8 @@ __all__ = [
     "DailyPlan",
     "DailyTask",
     "TaskStatus",
+    "GoalGenerationStatus",
     "User",
     "WeeklyGoal",
     "WeeklyGoalStatus",
 ]
-

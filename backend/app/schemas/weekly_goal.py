@@ -3,7 +3,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.weekly_goal import WeeklyGoalStatus
+from app.models.weekly_goal import GoalGenerationStatus, WeeklyGoalStatus
 
 
 class WeeklyGoalCreate(BaseModel):
@@ -21,5 +21,7 @@ class WeeklyGoalRead(BaseModel):
     description: str
     week_start_date: date
     status: WeeklyGoalStatus
+    generation_status: GoalGenerationStatus
+    generation_error: str | None
     created_at: datetime
     updated_at: datetime
